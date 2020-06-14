@@ -47,7 +47,7 @@ export class PlayerEntity {
   @JoinColumn({ name: 'CountryId' })
   public country: CountryEntity;
 
-  @ManyToMany(() => ClubEntity, { nullable: false, cascade: true })
+  @ManyToMany(() => ClubEntity, club => club.players)
   @JoinTable({
     name: 'PlayerClub',
     joinColumn: {

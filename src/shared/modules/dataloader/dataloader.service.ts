@@ -7,6 +7,7 @@ import { CountryService } from '../../../modules/country/country.service';
 import { Country } from '../../../modules/country/models/country.interface';
 import { Player } from '../../../modules/player/models/player.interface';
 import { PlayerService } from '../../../modules/player/player.service';
+import { generateOneToManyMap, generateManyToManyMap } from './dataloader.helper';
 import { IDataloaderArgs, IManyDataloaderArgs } from './models/dataloader-args.interface';
 import { IDataloader } from './models/dataloader.interface';
 
@@ -22,36 +23,37 @@ export class DataloaderService {
     return {
       countryLoader: this.oneToMany<number, Country>({
         batch: this.countryService.batch,
-        filterBy: 'countryId',
+        groupBy: 'countryId',
       }),
       playerClubsLoader: this.manyToMany<number, Player, Club>({
         batch: this.playerService.batch,
-        filterBy: 'playerId',
-        resolveProperty: 'clubs',
+        groupBy: 'playerId',
+        resolveKey: 'clubs',
         relations: ['clubs'],
       }),
       clubPlayersLoader: this.manyToMany<number, Club, Player>({
         batch: this.clubService.batch,
-        filterBy: 'clubId',
-        resolveProperty: 'players',
+        groupBy: 'clubId',
+        resolveKey: 'players',
         relations: ['players'],
       }),
       countryPlayersLoader: this.oneToMany<number, Player>({
         batch: this.playerService.batchByCountry,
-        filterBy: 'countryId',
+        groupBy: 'countryId',
       }),
       countryClubsLoader: this.oneToMany<number, Club>({
         batch: this.clubService.batchByCountry,
-        filterBy: 'countryId',
+        groupBy: 'countryId',
       }),
     };
   }
 
-  private oneToMany<K, E>({ batch, filterBy }: IDataloaderArgs<K, E>): Dataloader<K, E[]> {
+  private oneToMany<K, E>({ batch, groupBy }: IDataloaderArgs<K, E>): Dataloader<K, E[]> {
     return new Dataloader(
       async (keys: K[]) => {
         const response = await batch({ keys });
-        return keys.map((value: K) => response.filter((row: E) => row[filterBy] === value));
+        const map = generateOneToManyMap<K, E>(groupBy, response);
+        return keys.map((key: K) => map.has(key) ? [...map.get(key)] : []);
       },
       { cache: false },
     );
@@ -59,19 +61,15 @@ export class DataloaderService {
 
   private manyToMany<K, E, E2>({
     batch,
-    filterBy,
-    resolveProperty,
+    groupBy,
+    resolveKey,
     relations,
+    select,
   }: IManyDataloaderArgs<K, E>): Dataloader<K, E2[]> {
     return new Dataloader(async (keys: K[]) => {
-      const response = await batch({ keys, relations });
-      return keys.map((key: K) =>
-        response.reduce(
-          (rows: E2[], row: any) =>
-            row[filterBy] === key ? rows.concat(row[resolveProperty]) : rows,
-          [],
-        ),
-      );
+      const response = await batch({ keys, relations, select });
+      const map = generateManyToManyMap<K, E, E2>(groupBy, resolveKey as string, response);
+      return keys.map((key: K) => map.has(key) ? [...map.get(key)] : []);
     });
   }
 }

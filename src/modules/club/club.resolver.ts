@@ -41,8 +41,8 @@ export class ClubResolver {
   @ResolveProperty(() => [Player])
   public players(
     @Root() club: ClubEntity,
-    @Context() { dataloader: { countryPlayersLoader } }: IGraphQLContext,
+    @Context() { dataloader: { clubPlayersLoader } }: IGraphQLContext,
   ): Promise<Player[]> {
-    return countryPlayersLoader.load(club.countryId);
+    return clubPlayersLoader.load(club.clubId);
   }
 }
